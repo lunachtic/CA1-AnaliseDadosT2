@@ -1,0 +1,166 @@
+---
+title: "Tarefa2"
+author: "Fernando Aguiar e Lucas Gerlach Nachtigall"
+date: "16/09/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(caret)
+library(ggplot2)
+library(gridExtra)
+library(GGally)
+library(tidyverse)
+library(corrplot)
+```
+
+## 1 Carregue a base de dados e mostre a estrutura do dataset (str()). O arquivo do dataset não pode ser modificado de forma alguma. A leitura deverá tratar qualquer característica do arquivo.
+
+```{r}
+rm(list=ls())
+setwd("~/Ensino-Entreterimento/Graduação UCS/Semestre 8/Computação Aplicada I/Tarefa2-Computação_Aplicada_I")
+dadosMain = read.csv2("Dry_Bean_Dataset.csv",header=T)
+dados = dadosMain
+str(dados)
+```
+
+```{r}
+summary(iris)
+```
+
+## 2 Altere a variável do tipo do feijão (Class) para um factor.
+
+```{r}
+dados$Class <- factor(dados$Class)
+str(dados$Class)
+```
+## 3 Plote um gráfico de barras que ilustre as quantidades de cada classe.
+
+```{r}
+ggplot(dados,aes(Class,fill=Class)) + geom_bar() + geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "white") + theme(legend.position="none")
+```
+
+## 4 Realize a normalização dos dados via Z-score. Plote um boxplot para ilustrar a distribuição de cada variável. Mostre as estatísticas de cada variável (summary).  
+
+```{r}
+normalizacaoParametros = preProcess(dados,method = c("center","scale"))
+dados = predict(normalizacaoParametros, dados)
+p = list()
+for (i in 1:15) {
+  p[[i]] = ggplot(dados, aes_string(y=names(dados)[i])) + geom_boxplot(fill = i) + 
+    theme(legend.position="none")
+  if((i==3) || (i==6) || (i==9) || (i==12) || (i==15)){
+    do.call(grid.arrange,c(p[(i-2):i],ncol=3))
+  }
+}
+summary(dados)
+```
+
+## 5 Realize a seleção de características (correlação). Plote o gráfico de correlação. Liste as características que foram removidas. 
+
+```{r}
+dados = dadosMain
+rotulos = dados[,17]
+dados = dados[,-17] 
+matrizCorrelacao = cor(dados)
+indicesCorrelacaoForte = findCorrelation(matrizCorrelacao, cutoff=0.95)
+corrplot.mixed(matrizCorrelacao,lower.col="black")
+```
+```{r}
+print(colnames(dados[,indicesCorrelacaoForte]))
+if (length(indicesCorrelacaoForte) > 0)
+    dados[,indicesCorrelacaoForte] = NULL
+```
+
+
+## 6 Plote um gráfico boxplot ou de densidade por variável x classe (organize em 3 colunas). Discuta qual é a variável que teria maior poder de discriminação? Existe alguma classe que pode ser classificada mais facilmente? Justifique a sua escolha.
+
+```{r}
+p = list()
+dados$Class = dadosMain$Class
+for(i in 1:length(dados)){
+   p[[i]] = ggplot(dados, aes_string(x=names(dados)[i],fill="Class")) + 
+            geom_density(alpha=0.5,color="darkgray") + 
+            theme(legend.position="top", legend.title = element_blank())
+   if((i==3) || (i==6) || (i==9) || (i==12) || (i==15)){
+    do.call(grid.arrange,c(p[(i-2):i],ncol=3))
+  }
+}
+```
+  ShapeFactor2 é a variável que teria maior poder de discriminação, pois é a variável que possui maior disperção de densidade entre as classes. Dentre as classes existentes, a Classe "BOMBAY" é a que pode mais facilmente ser classificada pois tanto nas variáveis "Area" e "ShapeFactor1", esta classe pois grande discrepância das demais classes.
+
+## 7 Realize a projeção do dataset utilizando PCA. Explique as características dos componentes principais estimados. O que se pode explicar sobre os componentes principais utilizando o gráfico biplot. Apresente as características básicas (summary) dos dados.
+
+```{r}
+dados = dados[,-length(dados)]
+pca = prcomp(dados,center=TRUE,scale=TRUE)
+biplot(pca,xlabs = rep("", nrow(dados)))
+summary(pca)
+colnames(dados)
+```
+  
+  
+  As variáveis "AspectRation", "Eccentricity", "Solidity" e "roundness" são as que influenciam mais no componente principal 1. Podem-se dizer que as maiores medidas permitem discriminar melhor as classes.
+  As variáveis "Area", "ShapeFactor1" e "Extent" são as que influencia mais no componente principal 2.
+   As variáveis "AspectRation" e "Eccentricity" são altamente correlacionadas, pois o ângulo entre elas é muito pequeno. O mesmo acontece para "Solidity" e "roundness".
+  As variáveis "Area", "ShapeFactor1" e "Extent" não são correlacionadas com as demais, nem com elas mesmas, porque apresentam um ângulo muito abertos.
+
+
+## 8 Analise o dataset projetado com o auxílio do gráfico de boxplot por classe (igual ao do item 6).  Compare com o resultado do item 6. Se quiser, pode gerar um gráfico de espalhamento para auxiliar na explicação. 
+```{r}
+p = list()
+dados$Class = dadosMain$Class
+for(i in 1:length(dados)){
+   p[[i]] = ggplot(dados, aes_string(x=names(dados)[i],fill="Class")) + 
+            geom_density(alpha=0.5,color="darkgray") + 
+            theme(legend.position="top", legend.title = element_blank())
+   if((i==3) || (i==6) || (i==9) || (i==12) || (i==15)){
+    do.call(grid.arrange,c(p[(i-2):i],ncol=3))
+  }
+}
+```
+
+```{r}
+ggpairs(dados,aes(colour=rotulos, alpha=0.1))
+```
+
+## 9 É possível reduzir a dimensionalidade dos dados? Explique como! 
+
+```{r}
+numeroComponentes = min(which(summary(pca)$importance[3,] > 0.95))
+dados = predict(pca,dados)[,1:numeroComponentes]
+dados = data.frame(dados)
+```
+
+  Uma maneira de fazer a redução da dimensionalidade é realizar a Seleção dos autovetores que explicam pelo menos 95% da variância dos dados.
+
+## 10 Analise o dataset reduzido com o auxílio do gráfico de boxplot por classe (igual ao do item 6).   Compare com o resultado do item 6 e do item 8. Se quiser, pode gerar um gráfico de espalhamento para auxiliar na explicação.
+
+```{r}
+p = list()
+dados$Class = dadosMain$Class
+for(i in 1:length(dados)){
+   p[[i]] = ggplot(dados, aes_string(x=names(dados)[i],fill="Class")) + 
+            geom_density(alpha=0.5,color="darkgray") + 
+            theme(legend.position="top", legend.title = element_blank())
+   if(i<6){
+    do.call(grid.arrange,c(p[i],ncol=1))
+  }
+}
+```
+```{r}
+ggpairs(dados,aes(colour=rotulos, alpha=0.1))
+```
+
+## 11 Após ter analisado estas informações, quais considerações você faz sobre este conjunto de dados (ou tarefa)?
+
+  Com relação à classificação das sementes de feijão, as características de dimensão e forma das variedades de feijão não possuem características discriminatórias externas, o que torna esse processo de classificação complexo. Mas utilizando diversas maneiras de realizar reduções sobre a dimensionalidade dos dados, assim permitindo uma melhor maneira de classificar os dados. 
